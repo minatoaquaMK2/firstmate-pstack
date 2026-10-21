@@ -604,6 +604,62 @@
     {
       "path": ".agents/skills/validation-supervision/SKILL.md",
       "audience": "agent-runtime"
+    },
+    {
+      "path": "docs/pstack-pipeline.md",
+      "audience": "operator-current"
+    },
+    {
+      "path": "adapters/pstack-codex/adapter.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": "adapters/pstack-codex/pstack-worker/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": "adapters/pstack-codex/upstream/pstack/skills/poteto-mode/playbooks/bug-fix.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": "adapters/pstack-codex/upstream/pstack/skills/poteto-mode/playbooks/feature.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": "adapters/pstack-codex/upstream/pstack/skills/poteto-mode/playbooks/refactoring.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": "adapters/pstack-codex/upstream/pstack/skills/principle-build-the-lever/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": "adapters/pstack-codex/upstream/pstack/skills/principle-encode-lessons-in-structure/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": "adapters/pstack-codex/upstream/pstack/skills/principle-fix-root-causes/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": "adapters/pstack-codex/upstream/pstack/skills/principle-laziness-protocol/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": "adapters/pstack-codex/upstream/pstack/skills/principle-model-the-domain/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": "adapters/pstack-codex/upstream/pstack/skills/principle-prove-it-works/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": "adapters/pstack-codex/upstream/pstack/skills/principle-subtract-before-you-add/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": "adapters/pstack-codex/upstream/pstack/skills/principle-test-behavior-not-implementation/SKILL.md",
+      "audience": "agent-runtime"
     }
   ]
 }

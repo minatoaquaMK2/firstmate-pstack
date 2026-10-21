@@ -2140,6 +2140,7 @@ task_status_is_run_not_found() {  # <status-error> <run-id>
 conclude_task_no_mistakes_run() {  # <worktree>
   local wt=$1 out run_id
   [ "$KIND" = ship ] || return 0
+  [ -z "$(fm_meta_get "$META" pipeline)" ] && [ ! -e "$DATA/$ID/pipeline/contract.json" ] || return 0
   [ -d "$wt" ] || return 0
   command -v no-mistakes >/dev/null 2>&1 || return 0
   task_run_is_own_parked_run "$wt" || return 0
@@ -3534,6 +3535,12 @@ if [ "$BACKEND" = orca ] && [ "$KIND" != scout ] && [ "$KIND" != secondmate ] &&
   ORCA_PATH_MATCH_VERIFIED=1
 fi
 
+if [ "$FORCE" != "--force" ]; then
+  # shellcheck source=bin/fm-pipeline-lib.sh
+  . "$SCRIPT_DIR/fm-pipeline-lib.sh"
+  fm_pipeline_gate "$STATE" "$ID" "$META" || exit 1
+fi
+
 if teardown_owns_worktree && [ -d "$WT" ] && [ "$FORCE" != "--force" ]; then
   if validate_worktree_teardown_safety; then
     :
@@ -3655,7 +3662,7 @@ if [ "$KIND" != secondmate ] && teardown_owns_worktree; then
 elif [ "$KIND" != secondmate ]; then
   reap_task_worktree_processes tasktmp "$TASK_TMP"
 fi
-if [ "$KIND" = ship ] && teardown_owns_worktree && [ -e "$CONFIG/pipeline-spend" ]; then
+if [ "$KIND" = ship ] && [ -z "$(fm_meta_get "$META" pipeline)" ] && [ ! -e "$DATA/$ID/pipeline/contract.json" ] && teardown_owns_worktree && [ -e "$CONFIG/pipeline-spend" ]; then
   FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_DATA_OVERRIDE="$DATA" FM_CONFIG_OVERRIDE="$CONFIG" \
     "$SCRIPT_DIR/fm-pipeline-spend.sh" record "$ID" >/dev/null \
     || echo "warning: could not record $ID's no-mistakes pipeline spend; cleanup continues" >&2

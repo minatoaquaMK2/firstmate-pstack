@@ -97,6 +97,7 @@ for a in "$@"; do
     continue
   fi
   case "$a" in
+    --pipeline|--pipeline=*) echo "error: pstack promotion is not enabled in this version; dispatch a fresh Ship" >&2; exit 1 ;;
     --mode) want_value=mode ;;
     --mode=*) MODE=${a#--mode=}; MODE_SET=1 ;;
     --yolo) want_value=yolo ;;

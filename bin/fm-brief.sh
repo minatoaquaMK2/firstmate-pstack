@@ -47,6 +47,8 @@
 #                the configured merge authority approves, firstmate merges to local main
 # no-mistakes-prod-only is a registry policy, not a task mode; resolve it to one of
 # the three concrete modes at intake before calling this script.
+# --pipeline pstack with --pipeline-contract <JSON> opts a local-only Ship into
+# candidate verification. docs/pstack-pipeline.md owns supported checks and limits.
 # --branch-prefix <prefix> optionally overrides the ship branch's "fm/" prefix, so
 # the resolved branch is "<prefix><task-id>" instead of the default "fm/<task-id>".
 # Pass an empty prefix ("--branch-prefix ''") for a bare "<task-id>" branch, or a
@@ -213,6 +215,9 @@ HERDR_LAB=0
 NO_PROJECTS=0
 MODE=
 MODE_SET=0
+PIPELINE=
+PIPELINE_SET=0
+PIPELINE_INPUT=
 BRANCH_PREFIX=fm/
 BRANCH_PREFIX_SET=0
 BASE_BRANCH=
@@ -234,6 +239,8 @@ for a in "$@"; do
     esac
     case "$want_value" in
       mode) MODE=$a; MODE_SET=1 ;;
+      pipeline) PIPELINE=$a; PIPELINE_SET=1 ;;
+      pipeline-contract) PIPELINE_INPUT=$a ;;
       branch-prefix) BRANCH_PREFIX=$a; BRANCH_PREFIX_SET=1 ;;
       base-branch) BASE_BRANCH=$a; BASE_BRANCH_SET=1 ;;
       forge) FORGE=$a; FORGE_SET=1 ;;
@@ -250,6 +257,10 @@ for a in "$@"; do
     --secondmate) KIND=secondmate ;;
     --herdr-lab) HERDR_LAB=1 ;;
     --no-projects) NO_PROJECTS=1 ;;
+    --pipeline) [ "$PIPELINE_SET" = 0 ] || { echo "error: duplicate --pipeline" >&2; exit 1; }; want_value=pipeline ;;
+    --pipeline=*) [ "$PIPELINE_SET" = 0 ] || { echo "error: duplicate --pipeline" >&2; exit 1; }; PIPELINE=${a#--pipeline=}; PIPELINE_SET=1 ;;
+    --pipeline-contract) want_value=pipeline-contract ;;
+    --pipeline-contract=*) PIPELINE_INPUT=${a#--pipeline-contract=} ;;
     --mode) want_value=mode ;;
     --mode=*) MODE=${a#--mode=}; MODE_SET=1 ;;
     --branch-prefix) want_value="branch-prefix" ;;
@@ -272,6 +283,19 @@ for a in "$@"; do
   esac
 done
 [ -z "$want_value" ] || { echo "error: --$want_value requires a value" >&2; exit 1; }
+
+# shellcheck source=bin/fm-pipeline-lib.sh
+. "$SCRIPT_DIR/fm-pipeline-lib.sh"
+[ "$PIPELINE_SET" = 0 ] || [ -n "$PIPELINE" ] || { echo "error: --pipeline requires pstack" >&2; exit 1; }
+fm_pipeline_selection "$PIPELINE" "$KIND" "$MODE" || exit 1
+if [ -n "$PIPELINE" ] && [ -z "$PIPELINE_INPUT" ]; then
+  echo "error: --pipeline pstack requires --pipeline-contract <policy.json>" >&2
+  exit 1
+fi
+if [ -z "$PIPELINE" ] && [ -n "$PIPELINE_INPUT" ]; then
+  echo "error: --pipeline-contract requires --pipeline pstack" >&2
+  exit 1
+fi
 
 # Ship delivery mode is an explicit per-task decision (AGENTS.md section 7). A
 # missing or invalid value stops the scaffold rather than silently defaulting.
@@ -665,6 +689,11 @@ IFS= read -r -d '' SHARED_INFRA_RULE <<'EOF' || true
    `blocked [at=<epoch>]: {what you need}` and stop; firstmate arranges it.
 EOF
 SHARED_INFRA_RULE=${SHARED_INFRA_RULE%$'\n'}
+if [ "$PIPELINE" = pstack ]; then
+  SHARED_INFRA_RULE=$(printf '%s\n' "$SHARED_INFRA_RULE" | sed '/^   - The .*no-mistakes.* daemon/,/^   - The worktree pool/{ /^   - The worktree pool/!d; }')
+  SHARED_INFRA_RULE=${SHARED_INFRA_RULE/Two things are shared:/The worktree pool is shared:}
+fi
+
 
 # One shared string keeps the ship and scout shell-path rule identical.
 IFS= read -r -d '' SHARED_NO_CD_RULE <<'EOF' || true
@@ -757,7 +786,12 @@ case "$MODE" in
     ;;
 esac
 RULE1=$(fm_ship_rule_one "$MODE" "$ID" "$BRANCH" "$FORGE" "$BASE_BRANCH") || exit 1
-DOD=$(fm_dod_block "$MODE" "$ID" "$BRANCH" "$FORGE" "$BASE_BRANCH" "$UPSTREAM_CONSENT") || exit 1
+if [ "$PIPELINE" = pstack ]; then
+  PIPELINE_DIGEST=$(FM_HOME="$FM_HOME" FM_DATA_OVERRIDE="$DATA" "$SCRIPT_DIR/fm-pstack.sh" prepare "$ID" --input "$PIPELINE_INPUT") || exit 1
+  DOD=$(fm_pstack_dod_block "$ID" "$BRANCH" "$PIPELINE_DIGEST") || exit 1
+else
+  DOD=$(fm_dod_block "$MODE" "$ID" "$BRANCH" "$FORGE" "$BASE_BRANCH" "$UPSTREAM_CONSENT") || exit 1
+fi
 
 cat > "$BRIEF" <<EOF
 You are a crewmate: an autonomous worker agent managed by firstmate. Work on your own; do not wait for a human.

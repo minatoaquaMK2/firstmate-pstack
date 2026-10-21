@@ -285,7 +285,7 @@ family_for_basename() {
   case "$1" in
     fm-arm-pretool-check.test.sh|fm-ask-user-authority.test.sh|\
     fm-bearings-board.test.sh|\
-    fm-brief.test.sh|fm-dod-lib.test.sh|fm-vendor-auth-probe.test.sh|\
+    fm-brief.test.sh|fm-dod-lib.test.sh|fm-pstack.test.sh|fm-vendor-auth-probe.test.sh|\
     fm-calm-pi-extension.test.sh|fm-cd-pretool-check.test.sh|\
     fm-classify-decision-key.test.sh|\
     fm-composer-ghost.test.sh|fm-composer-lib.test.sh|\
@@ -494,32 +494,31 @@ list_known_lanes() {
 # bin/fm-test-isolation-proof.sh --list). Do not expand without a new concurrent
 # isolation proof archive.
 list_proven_isolated() {
-  cat <<'EOF'
-tests/fm-arm-pretool-check.test.sh
-tests/fm-backend-herdr.test.sh
-tests/fm-brief.test.sh
-tests/fm-captain-hold-lifecycle.test.sh
-tests/fm-cd-pretool-check.test.sh
-tests/fm-composer-ghost.test.sh
-tests/fm-composer-lib.test.sh
-tests/fm-crew-state.test.sh
-tests/fm-ensure-agents-md.test.sh
-tests/fm-grok-harness.test.sh
-tests/fm-herdr-lab.test.sh
-tests/fm-lint.test.sh
-tests/fm-pi-primary-types.test.sh
-tests/fm-pr-merge.test.sh
-tests/fm-review-diff.test.sh
-tests/fm-send-popup-settle.test.sh
-tests/fm-send-settle.test.sh
-tests/fm-send-strict.test.sh
-tests/fm-spawn-batch.test.sh
-tests/fm-supervision-instructions.test.sh
-tests/fm-test-run.test.sh
-tests/fm-tmux-submit-busy.test.sh
-tests/fm-transition-lib.test.sh
-tests/fm-x-mode.test.sh
-EOF
+  printf '%s\n' \
+    'tests/fm-arm-pretool-check.test.sh' \
+    'tests/fm-backend-herdr.test.sh' \
+    'tests/fm-brief.test.sh' \
+    'tests/fm-captain-hold-lifecycle.test.sh' \
+    'tests/fm-cd-pretool-check.test.sh' \
+    'tests/fm-composer-ghost.test.sh' \
+    'tests/fm-composer-lib.test.sh' \
+    'tests/fm-crew-state.test.sh' \
+    'tests/fm-ensure-agents-md.test.sh' \
+    'tests/fm-grok-harness.test.sh' \
+    'tests/fm-herdr-lab.test.sh' \
+    'tests/fm-lint.test.sh' \
+    'tests/fm-pi-primary-types.test.sh' \
+    'tests/fm-pr-merge.test.sh' \
+    'tests/fm-review-diff.test.sh' \
+    'tests/fm-send-popup-settle.test.sh' \
+    'tests/fm-send-settle.test.sh' \
+    'tests/fm-send-strict.test.sh' \
+    'tests/fm-spawn-batch.test.sh' \
+    'tests/fm-supervision-instructions.test.sh' \
+    'tests/fm-test-run.test.sh' \
+    'tests/fm-tmux-submit-busy.test.sh' \
+    'tests/fm-transition-lib.test.sh' \
+    'tests/fm-x-mode.test.sh'
 }
 
 # Per-script serial CI duration hints, one "<path> <ms>" per line, used to

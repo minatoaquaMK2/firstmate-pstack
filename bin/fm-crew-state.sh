@@ -278,6 +278,10 @@ map_log_state() {  # <line>
 
 LOG_LINE=$(status_current_line "$LOG" "$KIND")
 LOG_VERB=$(status_line_verb "$LOG_LINE")
+if [ "$LOG_VERB" = "done" ] && { [ -n "$(meta_value pipeline)" ] || [ -e "${FM_DATA_OVERRIDE:-$FM_HOME/data}/$ID/pipeline/contract.json" ]; }; then
+  emit_ship_status_done
+fi
+
 
 # --- remote secondmate: the true source is the remote endpoint ---------------
 # A remote mate's recorded worktree and backend target live on its own host, so
@@ -980,7 +984,7 @@ COARSE_STATUS=""
 SELECTED_RUN_ID=""
 # Scouts and secondmates never drive a no-mistakes validation of their own
 # worktree, so skip the lookup for them and read state from pane/log directly.
-if [ "$KIND" = ship ] && [ -n "$CREW_BRANCH" ] && command -v no-mistakes >/dev/null 2>&1; then
+if [ "$KIND" = ship ] && [ -z "$(meta_value pipeline)" ] && [ ! -e "${FM_DATA_OVERRIDE:-$FM_HOME/data}/$ID/pipeline/contract.json" ] && [ -n "$CREW_BRANCH" ] && command -v no-mistakes >/dev/null 2>&1; then
   RUN_OUT=$(nm_run axi status)
   if [ "$(strip_quotes "$(printf '%s\n' "$RUN_OUT" | sed -n 's/^error: //p')")" = "repo not initialized (run 'no-mistakes init' first)" ]; then
     RUN_OUT=""

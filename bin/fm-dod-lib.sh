@@ -847,8 +847,27 @@ fm_dod_named_head_reachable_outside_worktree() {  # <worktree> <project> <mode> 
 # output. <state> <id> <meta> supply pr=,
 # pr_head=, and the merge-notified marker; <meta> may be a captured copy
 # (bin/fm-fleet-snapshot.sh), so the marker is read from <state>.
+# shellcheck source=bin/fm-pipeline-lib.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-pipeline-lib.sh"
+
+fm_pstack_dod_block() { # <task> <branch> <request-digest>
+  cat <<EOF
+# Definition of done
+Delivery contract: mode=local-only pipeline=pstack pipeline_request=$3
+Ship branch: $2
+Implement and commit on the assigned branch, then follow the pstack worker profile in the launch brief.
+Do not invoke no-mistakes, push, open a PR, or merge.
+Report the verification run to Firstmate for acceptance before reporting done.
+After Firstmate accepts the exact candidate, append \`done [at=<epoch>]: ready in branch $2\` to the status file.
+Dirty files, changed commits, missing checks, and missing independent review invalidate acceptance.
+EOF
+}
+
 fm_dod_accept_ship_done() {  # <kind> <mode> <worktree> <project> <line> [<state> <id> <meta>]
   local kind=$1 mode=$2 wt=$3 project=$4 line=$5 state=${6:-} id=${7:-} meta=${8:-} url sha gerrit
+  if [ "$(status_line_verb "$line")" = "done" ]; then
+    fm_pipeline_gate "$state" "$id" "$meta" || return 1
+  fi
   fm_dod_should_gate_ship_done "$kind" "$mode" "$line" || return 0
   if [ -n "$meta" ] && [ "$(fm_dod_meta_value "$meta" forge)" = external ]; then
     fm_dod_accept_external_review_done "$wt" "$project" "$line" "$meta"

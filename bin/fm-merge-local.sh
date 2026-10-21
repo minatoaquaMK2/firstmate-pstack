@@ -135,6 +135,13 @@ case "$hold_status" in
     exit 1
     ;;
 esac
+# shellcheck source=bin/fm-pipeline-lib.sh
+. "$SCRIPT_DIR/fm-pipeline-lib.sh"
+if [ -n "$(sed -n 's/^pipeline=//p' "$META")" ] || [ -e "${FM_DATA_OVERRIDE:-$FM_HOME/data}/$ID/pipeline/contract.json" ]; then
+  fm_pipeline_gate "$STATE" "$ID" "$META" || exit 1
+  echo "error: pstack local merge is not enabled; deliver the verified branch for review" >&2
+  exit 1
+fi
 merge_status=0
 git -C "$PROJ" merge --ff-only "$BRANCH" >/dev/null || merge_status=$?
 fm_lock_release "$MERGE_CONTROL_LOCK" || true

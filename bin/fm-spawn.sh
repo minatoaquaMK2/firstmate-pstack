@@ -812,6 +812,10 @@ MODEL_SET=0
 EFFORT_SET=0
 BACKEND_SET=0
 MODE_SET=0
+PIPELINE=
+PIPELINE_SET=0
+PIPELINE_CONTRACT_DIGEST=
+PIPELINE_PERMISSION=
 YOLO_SET=0
 BRANCH_PREFIX_SET=0
 BASE_BRANCH=
@@ -849,6 +853,10 @@ for a in "$@"; do
     backend)
       BACKEND_ARG=$a
       BACKEND_SET=1
+      ;;
+    pipeline)
+      PIPELINE=$a
+      PIPELINE_SET=1
       ;;
     mode)
       MODE=$a
@@ -891,6 +899,8 @@ for a in "$@"; do
     KIND=secondmate
     KIND_SET=1
     ;;
+  --pipeline) [ "$PIPELINE_SET" = 0 ] || { echo "error: duplicate --pipeline" >&2; exit 1; }; want_value=pipeline ;;
+  --pipeline=*) [ "$PIPELINE_SET" = 0 ] || { echo "error: duplicate --pipeline" >&2; exit 1; }; PIPELINE=${a#--pipeline=}; PIPELINE_SET=1 ;;
   --relaunch) RELAUNCH=1 ;;
   --herdr-resume-lock-wait) HERDR_RESUME_LOCK_WAIT=1 ;;
   --harness) want_value=harness ;;
@@ -1002,6 +1012,14 @@ case "$EFFORT" in
   exit 1
   ;;
 esac
+
+# shellcheck source=bin/fm-pipeline-lib.sh
+. "$SCRIPT_DIR/fm-pipeline-lib.sh"
+if [ "$PIPELINE_SET" -eq 1 ]; then
+  [ -n "$PIPELINE" ] || { echo "error: --pipeline requires pstack" >&2; exit 1; }
+  fm_pipeline_selection "$PIPELINE" "$KIND" "$MODE" || exit 1
+  [ "$RELAUNCH" -eq 0 ] || { echo "error: pstack relaunch is not enabled in this version" >&2; exit 1; }
+fi
 
 # --relaunch reuses an existing task's endpoint, worktree, project, and kind,
 # so every axis this block resolves for a fresh spawn instead comes from that
@@ -2169,6 +2187,8 @@ if [ "$RELAUNCH" -eq 1 ]; then
     echo "error: secondmate $ID's recorded endpoint is gone; its recovery is owned by the secondmate respawn path, not by relaunch (run bin/fm-spawn.sh $ID --secondmate, or let the session-start liveness sweep do it)" >&2
     exit 1
   fi
+  PIPELINE=$(fm_meta_get "$RELAUNCH_META" pipeline)
+  [ -z "$PIPELINE" ] && [ ! -e "$DATA/$ID/pipeline/contract.json" ] || { echo "error: pstack relaunch requires verified recovery support" >&2; exit 1; }
   MODE=$(fm_meta_get "$RELAUNCH_META" mode)
   YOLO=$(fm_meta_get "$RELAUNCH_META" yolo)
   UPSTREAM_CONSENT=$(fm_meta_get "$RELAUNCH_META" upstream_consent)
@@ -3640,6 +3660,22 @@ delivery_rigor_rank() { # <mode> -> 3 (most rigor) .. 1 (least); 0 = not a task 
   esac
 }
 
+if [ -n "$PIPELINE" ]; then
+  [ "$RAW_LAUNCH" = 0 ] || { echo "error: pstack refuses custom launch commands" >&2; exit 1; }
+  fm_pipeline_selection "$PIPELINE" "$KIND" "$MODE" "$HARNESS" "$BACKEND" "$YOLO" || exit 1
+  PIPELINE_POLICY=$(FM_HOME="$FM_HOME" FM_DATA_OVERRIDE="$DATA" "$SCRIPT_DIR/fm-pstack.sh" preflight "$ID" --brief "$BRIEF") || exit 1
+  PIPELINE_MODEL=$(printf '%s' "$PIPELINE_POLICY" | jq -r '.implementation.model')
+  PIPELINE_EFFORT=$(printf '%s' "$PIPELINE_POLICY" | jq -r '.implementation.effort')
+  PIPELINE_PERMISSION=$(printf '%s' "$PIPELINE_POLICY" | jq -r '.permission_profile')
+  [ -z "$MODEL" ] || [ "$MODEL" = "$PIPELINE_MODEL" ] || { echo "error: pstack model conflicts with contract" >&2; exit 1; }
+  [ -z "$EFFORT" ] || [ "$EFFORT" = "$PIPELINE_EFFORT" ] || { echo "error: pstack effort conflicts with contract" >&2; exit 1; }
+  MODEL=$PIPELINE_MODEL
+  EFFORT=$PIPELINE_EFFORT
+elif grep -q '^Delivery contract:.*pipeline=' "$BRIEF"; then
+  echo "error: brief selects a pipeline but spawn has no --pipeline" >&2
+  exit 1
+fi
+
 # Brief/spawn delivery agreement, checked before any endpoint exists.
 # fm-brief.sh records a ship brief's mode as a fixed "Delivery contract: mode=<mode>"
 # line, with " forge=<forge>" appended on a bound forge. A spawn that disagrees
@@ -5104,6 +5140,19 @@ fi
 spawn_enter_recorded_worktree
 spawn_assert_agent_worktree
 
+if [ "$PIPELINE" = pstack ]; then
+  PIPELINE_CONTRACT_DIGEST=$(FM_HOME="$FM_HOME" FM_DATA_OVERRIDE="$DATA" "$SCRIPT_DIR/fm-pstack.sh" bind "$ID" --project "$PROJ_ABS" --worktree "$WT" --branch "$BRANCH") || exit 1
+  cat >>"$BRIEF" <<EOF
+
+# Pstack worker profile
+Read $FM_ROOT/adapters/pstack-codex/pstack-worker/SKILL.md and $DATA/$ID/pipeline/contract.json before implementation.
+After committing, run FM_HOME='$FM_HOME' FM_DATA_OVERRIDE='$DATA' FM_STATE_OVERRIDE='$STATE' '$SCRIPT_DIR/fm-pstack.sh' verify '$ID' --candidate FULL_SHA.
+Use your actual CODEX_THREAD_ID as writer identity, and report blocked if it is unavailable.
+Report the candidate and run ID to Firstmate, which runs review '$ID' --run RUN_ID from the host.
+Report the run ID and candidate to Firstmate for accept; do not write accepted.json yourself.
+EOF
+fi
+
 # Pre-register Claude's workspace trust for the directory this launch starts in,
 # at the first point that directory is known and before any per-task state is
 # created below. The dialog gates the pane before the brief is ever read, and it
@@ -5207,6 +5256,7 @@ if [ "$RELAUNCH" -eq 1 ]; then
     exit 1
   }
 fi
+
 if [ "$HARNESS" = polytoken ] && [ "$RAW_LAUNCH" -eq 0 ]; then
   fm_polytoken_require_hooks_free "$WT" || exit 1
   fm_polytoken_require_handler_path "$(fm_polytoken_busy_script "$STATE_REAL" "$ID")" || exit 1
@@ -5820,7 +5870,7 @@ SPAWN_META_PATH=$SPAWN_META_TMP
 preserve_relaunch_meta() {
   awk -F= '
     BEGIN {
-      split("window endpoint_task_id worktree project harness kind mode yolo branch tasktmp base_branch upstream_consent forge backup_remote backup_prefix model effort account account_provider busy_gen spawn_gen traceparent backend herdr_session herdr_workspace_id herdr_tab_id herdr_pane_id zellij_session zellij_tab_id zellij_pane_id orca_worktree_id terminal cmux_workspace_id cmux_surface_id paseo_terminal_id paseo_workspace_id home projects control_relaunch_tx polytoken_session polytoken_port polytoken_credential", keys, " ")
+      split("window endpoint_task_id worktree project harness kind mode pipeline pipeline_contract_sha256 pipeline_permission_profile yolo branch tasktmp base_branch upstream_consent forge backup_remote backup_prefix model effort account account_provider busy_gen spawn_gen traceparent backend herdr_session herdr_workspace_id herdr_tab_id herdr_pane_id zellij_session zellij_tab_id zellij_pane_id orca_worktree_id terminal cmux_workspace_id cmux_surface_id paseo_terminal_id paseo_workspace_id home projects control_relaunch_tx polytoken_session polytoken_port polytoken_credential", keys, " ")
       for (i in keys) owned[keys[i]] = 1
     }
     !($1 in owned)
@@ -5834,6 +5884,11 @@ preserve_relaunch_meta() {
   echo "harness=$HARNESS"
   echo "kind=$KIND"
   [ -z "$MODE" ] || echo "mode=$MODE"
+  if [ -n "$PIPELINE" ]; then
+    echo "pipeline=$PIPELINE"
+    echo "pipeline_contract_sha256=$PIPELINE_CONTRACT_DIGEST"
+    echo "pipeline_permission_profile=$PIPELINE_PERMISSION"
+  fi
   [ -z "$YOLO" ] || echo "yolo=$YOLO"
   [ -z "${BRANCH:-}" ] || echo "branch=$BRANCH"
   echo "tasktmp=$TASK_TMP"
@@ -5978,6 +6033,11 @@ if [ "$SPAWN_TASK_SET_LOCK_HELD" = 1 ]; then
 fi
 "$SCRIPT_DIR/fm-home-summary-refresh.sh" --best-effort || true
 [ "$BACKEND" = orca ] && ORCA_ABORT_CLEANUP=0
+
+if [ "$PIPELINE" = pstack ]; then
+  PIPELINE_PERMISSIONS='--sandbox danger-full-access --ask-for-approval never'
+  LAUNCH=${LAUNCH//--dangerously-bypass-approvals-and-sandbox/$PIPELINE_PERMISSIONS}
+fi
 
 sq_brief=$(shell_quote "$BRIEF")
 sq_turnend=$(shell_quote "$TURNEND")

@@ -1123,6 +1123,9 @@ do_relaunch() {
   local exit_result state note_line
   local -a spawn_args
 
+  if [ -n "$(sed -n 's/^pipeline=//p' "$META")" ] || [ -e "${FM_DATA_OVERRIDE:-$FM_HOME/data}/$ID/pipeline/contract.json" ]; then
+    die "pstack relaunch is not enabled until recovery ownership is verified"
+  fi
   require_state_verified_backend relaunch
   resolve_relaunch_profile
 
